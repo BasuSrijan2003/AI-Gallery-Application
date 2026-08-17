@@ -4,6 +4,7 @@ const {
   registerUser, 
   loginUser, 
   forgotPassword, 
+  resetPassword,
   logoutUser 
 } = require('../controllers/authController');
 
@@ -22,20 +23,13 @@ const {
  *             properties:
  *               name:
  *                 type: string
- *                 example: "Test User"
  *               email:
  *                 type: string
- *                 example: "test@example.com"
  *               password:
  *                 type: string
- *                 example: "supersecretpassword"
  *     responses:
  *       201:
  *         description: User registered successfully
- *       400:
- *         description: A user with this email already exists
- *       500:
- *         description: Server error
  * 
  * /api/auth/login:
  *   post:
@@ -50,19 +44,15 @@ const {
  *             properties:
  *               email:
  *                 type: string
- *                 example: "test@example.com"
  *               password:
  *                 type: string
- *                 example: "supersecretpassword"
  *     responses:
  *       200:
  *         description: Login successful
- *       400:
- *         description: Invalid email or password
  * 
  * /api/auth/forgot-password:
  *   post:
- *     summary: Reset user password
+ *     summary: Request a password reset email
  *     tags: [Auth]
  *     requestBody:
  *       required: true
@@ -73,15 +63,32 @@ const {
  *             properties:
  *               email:
  *                 type: string
- *                 example: "test@example.com"
- *               newPassword:
- *                 type: string
- *                 example: "newsecurepassword123"
  *     responses:
  *       200:
- *         description: Password has been reset successfully
- *       404:
- *         description: User not found
+ *         description: Email sent successfully
+ * 
+ * /api/auth/reset-password/{token}:
+ *   put:
+ *     summary: Reset password using email token
+ *     tags: [Auth]
+ *     parameters:
+ *       - in: path
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               password:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Password reset successfully
  * 
  * /api/auth/logout:
  *   post:
@@ -95,6 +102,7 @@ const {
 router.post('/register', registerUser);
 router.post('/login', loginUser);
 router.post('/forgot-password', forgotPassword);
+router.put('/reset-password/:token', resetPassword);
 router.post('/logout', logoutUser);
 
 module.exports = router;

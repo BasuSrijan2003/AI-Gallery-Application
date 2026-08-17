@@ -1,11 +1,18 @@
 const User = require('../models/User');
+const crypto = require('crypto');
+const sendEmail = require('../utils/sendEmail');
 
-// ==========================================
-// 1. REGISTER USER
-// ==========================================
 const registerUser = async (req, res) => {
   try {
+    // 1. Let's log the incoming data so we can see what Swagger is actually sending!
+    console.log("Incoming request body:", req.body);
+
     const { name, email, password } = req.body;
+
+    // 2. Add this safety check!
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: "Please provide name, email, and password." });
+    }
 
     let existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -22,9 +29,6 @@ const registerUser = async (req, res) => {
   }
 };
 
-// ==========================================
-// 2. LOGIN USER
-// ==========================================
 const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -53,37 +57,69 @@ const loginUser = async (req, res) => {
   }
 };
 
-// ==========================================
-// 3. FORGOT / RESET PASSWORD
-// ==========================================
 const forgotPassword = async (req, res) => {
   try {
-    const { email, newPassword } = req.body;
+    const user = await User.findOne({ email: req.body.email });
     
-    const user = await User.findOne({ email });
     if (!user) {
       return res.status(404).json({ message: "User not found with this email" });
     }
 
-    // Replace the old password with the new one. 
-    // Your User.js model will automatically scramble this new password before saving it!
-    user.password = newPassword;
+    const resetToken = user.getResetPasswordToken();
     await user.save();
 
-    res.status(200).json({ message: "Password has been reset successfully!" });
+    const resetUrl = `http://localhost:3000/api/auth/reset-password/${resetToken}`;
+    const message = `You requested a password reset. Please make a PUT request with your new password to: \n\n ${resetUrl}`;
+
+    try {
+      await sendEmail({
+        email: user.email,
+        subject: 'AI Gallery Password Reset Token',
+        message: message,
+      });
+
+      res.status(200).json({ message: "Email sent successfully!" });
+    } catch (error) {
+      user.resetPasswordToken = undefined;
+      user.resetPasswordExpire = undefined;
+      await user.save();
+
+      console.error(error);
+      res.status(500).json({ message: "Email could not be sent" });
+    }
   } catch (error) {
-    console.error("Error in forgotPassword:", error);
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  try {
+    const resetPasswordToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
+
+    const user = await User.findOne({
+      resetPasswordToken,
+      resetPasswordExpire: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: "Invalid or expired token" });
+    }
+
+    user.password = req.body.password;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+    await user.save();
+
+    res.status(200).json({ message: "Password reset successfully!" });
+  } catch (error) {
+    console.error(error);
     res.status(500).json({ message: "Server error during password reset" });
   }
 };
 
-// ==========================================
-// 4. LOGOUT USER
-// ==========================================
 const logoutUser = (req, res) => {
-  // Because you are not using JWTs or backend sessions, logout is just a confirmation.
-  // Your frontend application will handle the actual logout by clearing its local storage.
   res.status(200).json({ message: "Logged out successfully!" });
 };
 
-module.exports = { registerUser, loginUser, forgotPassword, logoutUser };
+module.exports = { registerUser, loginUser, forgotPassword, resetPassword, logoutUser };
